@@ -1,0 +1,5 @@
+vault/
+vault.json
+*.bin
+*.txt
+!robots.txt

@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Машинские · Семейный атлас",
+  "short_name": "Машинские",
+  "description": "Семейное древо, поколения и источники. Доступ по семейному паролю.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f1e8",
+  "theme_color": "#995d43",
+  "icons": [
+    {
+      "src": "./icons/clay-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/clay-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
