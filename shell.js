@@ -40,6 +40,49 @@
   }
   // Static script (no code built from data): reads the anchor id from a meta tag, opens parent <details>, scrolls to it.
   const REPORT_ANCHOR_SCRIPT='<script>addEventListener("load",()=>{const m=document.querySelector("meta[name=atlas-anchor]");const t=m&&document.getElementById(m.content);if(t){for(let p=t;p;p=p.parentElement)if(p.tagName==="DETAILS")p.open=true;t.scrollIntoView();}});<'+'/script>';
+
+  // Правки от родственников: форма → веб-приложение Apps Script владельца (таблица + письмо). Сайт сам ничего не меняет.
+  const FEEDBACK_URL='https://script.google.com/macros/s/AKfycbwYxYMUWCW7_cSMoWWr4L7x-KK-6zBhV44JJXeemuzSexEubz350jy0Lps77b8H2xy5/exec';
+  let feedback=null;
+  function shrinkPhoto(file){
+    return new Promise((resolve,reject)=>{
+      const img=new Image(),url=URL.createObjectURL(file);
+      img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);resolve(c.toDataURL('image/jpeg',0.85));};
+      img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Не удалось прочитать фото.'));};
+      img.src=url;
+    });
+  }
+  function currentSubject(){
+    const sel=document.querySelector('[aria-selected="true"] h2,[aria-selected="true"] h3,.selected h2,.selected h3,.person-card h2,.person h2,dialog[open] h2');
+    return sel?sel.textContent.trim().slice(0,200):'';
+  }
+  function showFeedback(){
+    if(!feedback||!feedback.isConnected){
+      feedback=createDialog('install-dialog feedback-dialog');
+      feedback.innerHTML='<div class="appearance-header"><span class="eyebrow">ПРАВКА В СЕМЕЙНЫЙ АТЛАС</span><button data-dialog-close aria-label="Закрыть">×</button></div><h2>Предложить правку</h2><p>Напишите, что неверно и как правильно. Тимур посмотрит и внесёт в атлас.</p><form class="feedback-form"><label>Ваше имя<input name="author" required maxlength="120" autocomplete="name"></label><label>О ком или о чём<input name="person" maxlength="300" placeholder="Например: Машинский Иван Петрович, 1890 г.р."></label><label>Что исправить<textarea name="text" required maxlength="5000" rows="5" placeholder="Что сейчас написано и как правильно; откуда известно"></textarea></label><label>Фото документа (необязательно)<input name="photo" type="file" accept="image/*"></label><button class="primary" type="submit">Отправить</button><p class="feedback-status" role="status" aria-live="polite"></p></form>';
+      const form=feedback.querySelector('form'),status=feedback.querySelector('.feedback-status');
+      form.addEventListener('submit',async e=>{
+        e.preventDefault();const btn=form.querySelector('button[type=submit]');if(btn.disabled)return;btn.disabled=true;status.textContent='Отправляю…';
+        try{
+          const f=form.elements,file=f.photo.files[0];
+          const body={author:f.author.value.trim(),person:f.person.value.trim(),text:f.text.value.trim(),page:location.pathname+location.hash};
+          if(file)body.photo=await shrinkPhoto(file);
+          try{localStorage.setItem('atlas-author',body.author);}catch{/* хранилище недоступно — работаем без него */}
+          await fetch(FEEDBACK_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
+          form.reset();feedback.close();toast('Спасибо! Правка отправлена Тимуру.');
+        }catch(err){status.textContent=(err&&err.message&&!/fetch/i.test(err.message)?err.message:'Не удалось отправить. Проверьте интернет и попробуйте ещё раз.');}
+        finally{btn.disabled=false;if(status.textContent==='Отправляю…')status.textContent='';}
+      });
+    }
+    const f=feedback.querySelector('form').elements;
+    try{if(!f.author.value)f.author.value=localStorage.getItem('atlas-author')||'';}catch{/* хранилище недоступно — работаем без него */}
+    if(!f.person.value)f.person.value=currentSubject();
+    feedback.showModal();
+  }
+  function addFeedbackButton(){
+    if(!FEEDBACK_URL||document.querySelector('.feedback-fab'))return;
+    const b=document.createElement('button');b.type='button';b.className='feedback-fab';b.textContent='✎ Предложить правку';b.addEventListener('click',showFeedback);document.body.append(b);
+  }
   const fromB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
   // Store a non-exportable device key only after the user opts in. Never store the password or decrypted archive.
   function deviceAccess(action,value){
@@ -99,7 +142,7 @@
     applyTheme(theme);window.dispatchEvent(new CustomEvent('atlas-unlocked',{detail:decoded.model}));
     document.querySelector('.private')?.setAttribute('title','Доступ по семейному паролю');
     const logout=document.querySelector('[data-lock]');if(logout){logout.textContent='Выйти';logout.title='Закрыть атлас и удалить сохранённый доступ на этом устройстве';}
-    if(reportPage)openReport(initialHash);
+    if(reportPage)openReport(initialHash);addFeedbackButton();
   }
   document.addEventListener('click',async e=>{
     const target=e.target;
