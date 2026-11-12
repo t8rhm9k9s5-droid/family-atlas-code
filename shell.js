@@ -35,9 +35,11 @@
     report?.remove();report=document.createElement('section');report.className='report-overlay';report.setAttribute('role','dialog');report.setAttribute('aria-modal','true');report.setAttribute('aria-label','Материалы исследования');
     report.innerHTML='<div class="report-top"><span>Материалы исследования · защищённая копия</span><button data-report-close>Вернуться к древу ×</button></div><iframe class="report-frame" title="Полные материалы семейного исследования" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>';
     const anchor=hash.replace(/^#/,'');let doc=bundle.report;
-    if(/^[A-Za-z0-9_-]+$/.test(anchor))doc=doc.replace('</body>',`<script>addEventListener('load',()=>{const t=document.getElementById(${JSON.stringify(anchor)});if(t){for(let p=t;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;t.scrollIntoView();}});<\/script></body>`);
+    if(/^[A-Za-z0-9_-]+$/.test(anchor))doc=doc.replace('</body>','<meta name="atlas-anchor" content="'+anchor+'">'+REPORT_ANCHOR_SCRIPT+'</body>');
     report.querySelector('iframe').srcdoc=doc;document.body.append(report);report.querySelector('button').focus();
   }
+  // Static script (no code built from data): reads the anchor id from a meta tag, opens parent <details>, scrolls to it.
+  const REPORT_ANCHOR_SCRIPT='<script>addEventListener("load",()=>{const m=document.querySelector("meta[name=atlas-anchor]");const t=m&&document.getElementById(m.content);if(t){for(let p=t;p;p=p.parentElement)if(p.tagName==="DETAILS")p.open=true;t.scrollIntoView();}});<'+'/script>';
   const fromB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
   // Store a non-exportable device key only after the user opts in. Never store the password or decrypted archive.
   function deviceAccess(action,value){
@@ -118,14 +120,14 @@
     const input=document.getElementById('family-password'),status=document.getElementById('unlock-status'),button=document.getElementById('unlock-button'),show=document.getElementById('show-password');
     show.onclick=()=>{const visible=input.type==='password';input.type=visible?'text':'password';show.textContent=visible?'Скрыть':'Показать';show.setAttribute('aria-label',visible?'Скрыть пароль':'Показать пароль');};
     form.addEventListener('submit',async e=>{
-      e.preventDefault();if(button.disabled)return;button.disabled=true;status.classList.remove('error-status');let pass=input.value;
+      e.preventDefault();if(button.disabled)return;button.disabled=true;status.classList.remove('error-status');const pass=input.value;
       try{
-        const access=await unlock(pass,text=>status.textContent=text);input.value='';pass='';
+        const access=await unlock(pass,text=>status.textContent=text);input.value='';
         let saveFailed=false;
         if(document.getElementById('remember-device')?.checked){try{await deviceAccess('put',{key:access.key,keyId:access.keyId});}catch{saveFailed=true;}}
         boot(access.decoded);
         if(saveFailed)toast('Атлас открыт, но браузер не разрешил запомнить устройство. В следующий раз потребуется пароль.');
-      }catch(err){status.textContent=err.message||'Не удалось открыть атлас. Обновите страницу.';status.classList.add('error-status');button.disabled=false;input.focus();}finally{pass='';}
+      }catch(err){status.textContent=err.message||'Не удалось открыть атлас. Обновите страницу.';status.classList.add('error-status');button.disabled=false;input.focus();}
     });
     // Restore opted-in access across reloads and browser restarts, including the installed web app.
     button.disabled=true;

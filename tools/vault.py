@@ -25,18 +25,48 @@ ITER = 600_000
 MIN_LEN = 16
 
 
+def _rb(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def _wb(path, data):
+    with open(path, "wb") as f:
+        f.write(data)
+
+
+def _rj(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _wj(path, obj, **kw):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, **kw)
+
+
+def _rt(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _wt(path, text):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def _key(password, salt):
     return PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=ITER).derive(password.encode())
 
 
 def _read_cipher(site, cfg):
     path = os.path.join(site, cfg["file"][2:])
-    data = open(path, "rb").read()
+    data = _rb(path)
     return base64.b64decode(data.strip()) if path.endswith(".txt") else data
 
 
 def decrypt(site, password):
-    cfg = json.load(open(os.path.join(site, "vault.json")))
+    cfg = _rj(os.path.join(site, "vault.json"))
     assert cfg["format"] == FORMAT and cfg["iterations"] == ITER, "неизвестный формат"
     raw = AESGCM(_key(password, base64.b64decode(cfg["salt"]))).decrypt(
         base64.b64decode(cfg["iv"]), _read_cipher(site, cfg), FORMAT.encode())
@@ -53,17 +83,17 @@ def encrypt(site, bundle, password, old_cfg=None):
     ct = AESGCM(_key(password, salt)).encrypt(iv, raw, FORMAT.encode())
     name = "atlas-" + hashlib.sha256(ct).hexdigest()[:16] + ".txt"
     os.makedirs(os.path.join(site, "vault"), exist_ok=True)
-    open(os.path.join(site, "vault", name), "wb").write(base64.b64encode(ct))
+    _wb(os.path.join(site, "vault", name), base64.b64encode(ct))
     cfg = {"format": FORMAT, "kdf": "PBKDF2", "hash": "SHA-256", "iterations": ITER,
            "salt": base64.b64encode(salt).decode(), "iv": base64.b64encode(iv).decode(),
            "cipher": "AES-GCM", "compression": "gzip", "file": "./vault/" + name}
-    json.dump(cfg, open(os.path.join(site, "vault.json"), "w"), separators=(",", ":"))
+    _wj(os.path.join(site, "vault.json"), cfg, separators=(",", ":"))
     sw = os.path.join(site, "sw.js")
     if os.path.exists(sw):
-        s = open(sw).read()
+        s = _rt(sw)
         s = re.sub(r"\./vault/atlas-[0-9a-f]{16}\.(bin|txt)", "./vault/" + name, s)
         s = re.sub(r"(remember-device-v)(\d+)", lambda m: m.group(1) + str(int(m.group(2)) + 1), s)
-        open(sw, "w").write(s)
+        _wt(sw, s)
     if old_cfg and old_cfg["file"] != cfg["file"]:
         old = os.path.join(site, old_cfg["file"][2:])
         if os.path.exists(old):
@@ -93,12 +123,12 @@ def main(argv):
         new = encrypt(site, b, _new_password(), cfg)
         print("Готово:", new["file"])
     elif cmd == "build":
-        bundle = json.load(open(argv[3]))
-        old = json.load(open(os.path.join(site, "vault.json"))) if os.path.exists(os.path.join(site, "vault.json")) else None
+        bundle = _rj(argv[3])
+        old = _rj(os.path.join(site, "vault.json")) if os.path.exists(os.path.join(site, "vault.json")) else None
         print("Готово:", encrypt(site, bundle, _new_password(), old)["file"])
     elif cmd == "export":
         _, b = decrypt(site, getpass.getpass("Пароль: "))
-        json.dump(b, open(argv[3], "w"), ensure_ascii=False)
+        _wj(argv[3], b, ensure_ascii=False)
         print("Расшифровано в", argv[3], "— не коммитить и удалить после работы.")
     else:
         sys.exit(__doc__)
